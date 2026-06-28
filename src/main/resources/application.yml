@@ -14,6 +14,10 @@ file-compressor:
   algorithm:
     default: ZSTD
     size-threshold-kb: 10          # Files smaller than this default to GZIP
+  validator:
+    supported-extensions: .txt,.csv,.log,.json,.xml,.yaml,.yml,.sql,.md
+    magic-bytes-check: true        # Rejects binary/pre-compressed files disguised as text
+    max-file-size-mb: 100
 
 spring:
   datasource:

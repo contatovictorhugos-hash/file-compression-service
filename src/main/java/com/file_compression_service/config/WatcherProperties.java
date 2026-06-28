@@ -9,7 +9,8 @@ public record WatcherProperties(
         FolderConfig processed,
         FolderConfig dlq,
         QueueConfig queue,
-        AlgorithmConfig algorithm) {
+        AlgorithmConfig algorithm,
+        ValidatorConfig validator) {
     public record FolderConfig(
             String path,
             long pollIntervalMs,
@@ -23,5 +24,11 @@ public record WatcherProperties(
     public record AlgorithmConfig(
             String defaultValue,
             int sizeThresholdKb) {
+    }
+
+    public record ValidatorConfig(
+            String supportedExtensions,
+            boolean magicBytesCheck,
+            long maxFileSizeMb) {
     }
 }
