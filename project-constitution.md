@@ -250,7 +250,7 @@ public interface CompressionStrategy {
 | Layer | Technology | Version | Notes |
 |---|---|---|---|
 | Language | Java | 21 LTS | Virtual Threads GA — no preview flags needed |
-| Framework | Spring Boot | 3.3.x | Loom-compatible async executor support |
+| Framework | Spring Boot | 4.1.x | Loom-compatible async executor support |
 | Watcher | `java.nio.file.WatchService` | JDK built-in | No extra dependency |
 | Queue | `java.util.concurrent.LinkedBlockingQueue` | JDK built-in | Bounded, thread-safe |
 | Virtual Threads | `Executors.newVirtualThreadPerTaskExecutor()` | JDK 21 built-in | The core differentiator |
@@ -260,24 +260,24 @@ public interface CompressionStrategy {
 | Metrics | Spring Boot Actuator + Micrometer | Spring Boot managed | Exposes `/actuator/health`, custom counters |
 | Build | Maven | 3.9.x | Consistent with existing portfolio |
 | Container | Docker + docker-compose | latest | One command to run full stack |
-| Testing | JUnit 5 + AssertJ + Testcontainers | Spring Boot managed | Integration tests with real filesystem |
+| Testing | JUnit 5 + AssertJ | Spring Boot managed | Integration tests with real filesystem + H2 in-memory |
  
 ---
  
 ## Package Structure
  
 ```
-file-compressor/
-├── src/main/java/com/victorhm/filecompressor/
-│   ├── FileCompressorApplication.java
+file-compression-service/
+├── src/main/java/com/file_compression_service/
+│   ├── FileCompressionServiceApplication.java
 │   │
 │   ├── watcher/
 │   │   ├── FileSystemWatcher.java        # WatchService loop, @Component
-│   │   └── FileValidator.java            # extension + size filter
+│   │   └── FileValidator.java            # extension + size + magic bytes filter
 │   │
 │   ├── queue/
-│   │   ├── CompressionTask.java          # record(Path file, Algorithm algo)
-│   │   └── TaskDispatcher.java           # polls queue, submits to executor
+│   │   ├── CompressionTask.java          # record(Path file, CompressionStrategy strategy)
+│   │   └── TaskDispatcher.java           # polls queue, submits to virtual thread executor
 │   │
 │   ├── worker/
 │   │   ├── CompressionWorker.java        # Runnable on virtual thread
@@ -287,33 +287,35 @@ file-compressor/
 │   │       └── ZstdStrategy.java
 │   │
 │   ├── output/
-│   │   ├── OutputWriter.java             # writes /outbox, moves /processed
-│   │   └── AlgorithmSelector.java        # maps file → strategy
+│   │   ├── OutputWriter.java             # writes /outbox, moves /processed, DLQ handler
+│   │   └── AlgorithmSelector.java        # maps file → strategy based on extension + size
 │   │
 │   ├── audit/
-│   │   ├── CompressionRecord.java        # @Entity
-│   │   ├── AuditRepository.java          # JpaRepository<CompressionRecord, Long>
-│   │   └── AuditService.java             # persistence logic, decoupled from worker
+│   │   ├── CompressionRecord.java        # @Entity — compression_records table
+│   │   ├── AuditRepository.java          # JpaRepository + custom JPQL aggregation
+│   │   └── AuditService.java             # persistence + Micrometer metrics registration
 │   │
 │   ├── api/
 │   │   └── CompressionStatsController.java  # GET /api/v1/reports/stats
 │   │
 │   └── config/
 │       ├── VirtualThreadConfig.java      # @Bean Executor (Loom)
-│       └── WatcherProperties.java        # @ConfigurationProperties inbox/outbox paths
+│       └── WatcherProperties.java        # @ConfigurationProperties — immutable record
 │
 ├── src/main/resources/
 │   ├── application.yml                   # inbox.path, outbox.path, algorithm defaults
-│   └── application-prod.yml             # PostgreSQL datasource override
+│   └── application-test.yml              # H2 in-memory for integration tests
 │
-├── src/test/java/com/victorhm/filecompressor/
+├── src/test/java/com/file_compression_service/
 │   ├── watcher/FileValidatorTest.java
-│   ├── worker/CompressionWorkerTest.java
-│   ├── strategy/ZstdStrategyTest.java
-│   └── integration/CompressionPipelineIT.java  # Testcontainers + real files
+│   ├── worker/strategy/GzipStrategyTest.java
+│   ├── worker/strategy/ZstdStrategyTest.java
+│   ├── output/AlgorithmSelectorTest.java
+│   ├── output/OutputWriterTest.java
+│   └── integration/CompressionPipelineTest.java  # Spring Boot IT + H2 in-memory
 │
 ├── Dockerfile
-├── docker-compose.yml                    # service + postgres profile
+├── docker-compose.yml
 └── pom.xml
 ```
  
@@ -440,4 +442,12 @@ management:
  
 ---
  
-*This document was generated during the planning phase. It should be updated after each implementation phase to reflect decisions made during development.*
+*This document was generated during the planning phase and updated after full implementation to reflect decisions made during development.*
+ 
+### Implementation Notes (Post-Development)
+ 
+- **Spring Boot 4.1.0** was used instead of the originally planned 3.3.x.
+- **DEFLATE** was intentionally excluded — GZIP wraps DEFLATE (RFC 1951) with added integrity verification and universal tooling compatibility.
+- **Testcontainers** were not needed — H2 in-memory database with `create-drop` is sufficient for integration testing.
+- **`application-test.yml`** was created (instead of `application-prod.yml`) to isolate test data directories under `target/`.
+- **53 automated tests** cover: FileValidator (17), AlgorithmSelector (11), OutputWriter (7), GzipStrategy (6), ZstdStrategy (6), CompressionPipeline integration (5), context loading (1).
