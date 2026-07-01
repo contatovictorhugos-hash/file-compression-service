@@ -1,0 +1,38 @@
+file-compressor:
+  inbox:
+    path: ./target/test-data/inbox
+    poll-interval-ms: 600000
+    max-file-size-mb: 100
+  outbox:
+    path: ./target/test-data/outbox
+  processed:
+    path: ./target/test-data/processed
+  dlq:
+    path: ./target/test-data/dlq
+  queue:
+    capacity: 100
+  algorithm:
+    default: ZSTD
+    size-threshold-kb: 10
+  validator:
+    supported-extensions: .txt,.csv,.log,.json,.xml,.yaml,.yml,.sql,.md
+    magic-bytes-check: true
+    max-file-size-mb: 100
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
