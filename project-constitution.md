@@ -136,7 +136,7 @@ noting the reason as `ALREADY_COMPRESSED` or `UNSUPPORTED_BINARY`.
 │  WORKER LAYER  (Virtual Threads — Executors.newVirtualThread…)  │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌─────────────┐  │
 │  │  Worker 1  │ │  Worker 2  │ │  Worker 3  │ │  Worker N…  │  │
-│  │   GZIP     │ │  DEFLATE   │ │   ZSTD     │ │             │  │
+│  │   GZIP     │ │   ZSTD     │ │   GZIP     │ │             │  │
 │  └────────────┘ └────────────┘ └────────────┘ └─────────────┘  │
 └────────────────────────────────────┬────────────────────────────┘
                                      │ write
@@ -224,12 +224,12 @@ The watcher and the workers run at different speeds. A burst of 200 files arrivi
  
 ### Strategy Pattern for compression algorithms — why it matters here
  
-Different file types compress differently. GZIP is ubiquitous and fast. DEFLATE gives similar ratio with lower memory. ZSTD (Facebook, 2016) achieves superior compression ratios at comparable speed and is the modern default for text-heavy workloads. Encoding the choice as a `CompressionStrategy` interface keeps `CompressionWorker` closed to modification when a new algorithm is added.
+Different file types compress differently. GZIP is ubiquitous and fast — it wraps the DEFLATE algorithm (RFC 1951) with a header containing magic bytes, CRC32 integrity check, and metadata, making a separate raw DEFLATE strategy redundant. ZSTD (Facebook, 2016) achieves superior compression ratios at comparable speed and is the modern default for text-heavy workloads. Encoding the choice as a `CompressionStrategy` interface keeps `CompressionWorker` closed to modification when a new algorithm is added.
  
 ```java
 public interface CompressionStrategy {
     byte[] compress(byte[] input) throws IOException;
-    String fileExtension();       // ".gz", ".zst", ".deflate"
+    String fileExtension();       // ".gz", ".zst"
     String algorithmName();       // for audit log
 }
 ```
@@ -254,7 +254,7 @@ public interface CompressionStrategy {
 | Watcher | `java.nio.file.WatchService` | JDK built-in | No extra dependency |
 | Queue | `java.util.concurrent.LinkedBlockingQueue` | JDK built-in | Bounded, thread-safe |
 | Virtual Threads | `Executors.newVirtualThreadPerTaskExecutor()` | JDK 21 built-in | The core differentiator |
-| Compression — GZIP/DEFLATE | `java.util.zip` | JDK built-in | Zero extra dependency |
+| Compression — GZIP | `java.util.zip` | JDK built-in | Zero extra dependency; GZIP wraps DEFLATE (RFC 1951) internally |
 | Compression — ZSTD | `com.github.luben:zstd-jni` | 1.5.6+ | Native binding, best ratio |
 | Persistence | Spring Data JPA + H2 (dev) | Spring Boot managed | Switch to PostgreSQL in prod via profile |
 | Metrics | Spring Boot Actuator + Micrometer | Spring Boot managed | Exposes `/actuator/health`, custom counters |
@@ -284,7 +284,6 @@ file-compressor/
 │   │   └── strategy/
 │   │       ├── CompressionStrategy.java  # interface
 │   │       ├── GzipStrategy.java
-│   │       ├── DeflateStrategy.java
 │   │       └── ZstdStrategy.java
 │   │
 │   ├── output/
@@ -389,7 +388,7 @@ Estimated scope for a developer working part-time alongside a full-time role.
 | Phase | Scope | Estimated effort |
 |---|---|---|
 | **Phase 1 — Core pipeline** | WatchService + Queue + Virtual Thread executor + GZIP only + OutputWriter | 2–3 evenings |
-| **Phase 2 — Multi-algorithm** | Strategy pattern + DEFLATE + ZSTD + AlgorithmSelector | 1–2 evenings |
+| **Phase 2 — Multi-algorithm** | Strategy pattern + ZSTD + AlgorithmSelector (GZIP already covers DEFLATE) | 1–2 evenings |
 | **Phase 3 — Persistence** | CompressionRecord entity + AuditRepository + AuditService | 1 evening |
 | **Phase 4 — Observability** | Actuator + Micrometer counters + `/api/v1/reports/stats` | 1 evening |
 | **Phase 5 — Resilience** | Dead-letter folder + retry logic + backpressure logging | 1–2 evenings |
