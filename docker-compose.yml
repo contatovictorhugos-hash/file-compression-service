@@ -1,0 +1,10 @@
+services:
+  file-compressor:
+    build: .
+    container_name: file-compressor-service
+    ports:
+      - "8080:8080"
+    environment:
+      - FILE_COMPRESSOR_INBOX_POLL_INTERVAL_MS=2000
+    volumes:
+      - ./data:/app/data
