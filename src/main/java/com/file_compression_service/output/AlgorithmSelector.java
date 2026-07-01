@@ -25,7 +25,12 @@ public class AlgorithmSelector {
 
     public CompressionStrategy select(Path file) {
         try {
-            long sizeKb = Files.size(file) / 1024;
+            long sizeBytes = Files.size(file);
+            if (sizeBytes < 150) {
+                return strategies.getOrDefault("PASSTHROUGH", strategies.get("GZIP"));
+            }
+
+            long sizeKb = sizeBytes / 1024;
             int threshold = properties.algorithm().sizeThresholdKb();
 
             if (sizeKb < threshold) {

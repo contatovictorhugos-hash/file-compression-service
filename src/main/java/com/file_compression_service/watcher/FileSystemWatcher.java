@@ -120,10 +120,11 @@ public class FileSystemWatcher {
                 processedFilesCache.remove(filename);
             }
         } else {
-            // If failed magic bytes check, quarantine directly to DLQ
+            // If failed magic bytes check or empty, quarantine directly to DLQ
             if (result.status() == FileValidator.ValidationStatus.ALREADY_COMPRESSED ||
-                    result.status() == FileValidator.ValidationStatus.UNSUPPORTED_BINARY) {
-                log.error("Rejection triggered. File {} is binary or pre-compressed ({}). Quarantining to DLQ.",
+                    result.status() == FileValidator.ValidationStatus.UNSUPPORTED_BINARY ||
+                    result.status() == FileValidator.ValidationStatus.EMPTY_FILE) {
+                log.error("Rejection triggered. File {} is invalid ({}). Quarantining to DLQ.",
                         filename, result.status());
                 outputWriter.sendToDlq(filePath, new IllegalArgumentException(result.status().name()));
             } else {

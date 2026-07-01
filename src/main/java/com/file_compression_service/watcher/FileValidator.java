@@ -21,6 +21,7 @@ public class FileValidator {
         TOO_LARGE,
         ALREADY_COMPRESSED,
         UNSUPPORTED_BINARY,
+        EMPTY_FILE,
         IO_ERROR
     }
 
@@ -63,7 +64,7 @@ public class FileValidator {
         try {
             long size = Files.size(path);
             if (size == 0) {
-                return new ValidationResult(false, ValidationStatus.IO_ERROR); // Empty files are invalid
+                return new ValidationResult(false, ValidationStatus.EMPTY_FILE); // Distinct EMPTY_FILE status
             }
 
             long maxBytes = properties.validator().maxFileSizeMb() * 1024 * 1024;
